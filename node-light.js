@@ -1,29 +1,15 @@
+#!/usr/bin/env node
 var dgram = require('dgram');
 var fs    = require('fs');
 var nconf = require('nconf');
 var express = require('express');
 var app = express();
 
-require('mkdirp').mkdirp(__dirname + '/log')
-
 nconf.file({file: require('path').resolve(__dirname, 'storage.json') });
 var light_state = nconf.get('light_state');
 var power_state = nconf.get('power_state');
+var logger = { "info" : console.log};
 
-
-var winston = require('winston');
-var PosixSyslog = require('winston-posix-syslog').PosixSyslog;
-
-var logger = new (winston.Logger)({
-	transports: [
-		new (winston.transports.Console)({colorize: 'all'}),
-		new (winston.transports.DailyRotateFile)({
-			filename: __dirname + '/log/logfile.log',
-			datePattern: '.dd-MM-yyyy'
-		}),
-		new (PosixSyslog)({identity: 'node-light'})
-	]
-});
 
 
 app.use(require('body-parser').json());
@@ -66,17 +52,17 @@ app.options('*', function(req, res) {
 });
 
 app.put('*', function(req, res) {
-	res.send(404, 'not available');
+	res.send(404, '"not available"');
 	logger.info('/: 404 not available');
 });
 
 app.get('*', function(req, res) {
-	res.send(404, 'not available');
+	res.send(404, '"not available"');
 	logger.info('/: 404 not available');
 });
 
 app.all('*', function(req, res) {
-	res.send(405, 'Method not allowed');
+	res.send(405, '"Method not allowed"');
 	logger.info('/: 405');
 });
 
