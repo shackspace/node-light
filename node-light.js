@@ -5,7 +5,10 @@ var nconf = require('nconf');
 var express = require('express');
 var app = express();
 
-nconf.file({file: require('path').resolve(__dirname, 'storage.json') });
+storage = process.env.STATEFILE || './storage.json'
+port = process.env.PORT || 8082
+
+nconf.file({file: storage });
 var light_state = nconf.get('light_state');
 var power_state = nconf.get('power_state');
 var logger = { "info" : console.log};
@@ -66,8 +69,8 @@ app.all('*', function(req, res) {
 	logger.info('/: 405');
 });
 
-app.listen(8080);
-logger.info('Server started on port 8080');
+app.listen(port);
+logger.info('Server started on port ' + port);
 
 
 
