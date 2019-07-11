@@ -1,10 +1,8 @@
-with (import <nixpkgs> {});
-rec {
-  muellshack = mkYarnPackage {
-    name = "muellshack";
-    src = ./.;
-    packageJSON = ./package.json;
-    yarnLock = ./yarn.lock;
-    yarnNix = ./yarn.nix;
-  };
+{ mkYarnPackage }:
+mkYarnPackage {
+  name = "node-light";
+  src = ./.;
+  packageJSON = ./package.json;
+  yarnLock = ./yarn.lock;
+  yarnNix = ./yarn.nix;
 }
