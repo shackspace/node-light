@@ -3,7 +3,7 @@ mkYarnPackage {
   name = "node-light";
   src = ./.;
   postInstall = ''
-    install -D -t $out/share storage.json
+    install -D -t $out/share $src/storage.json
   '';
 
   packageJSON = ./package.json;
