@@ -13,6 +13,12 @@ var light_state = nconf.get('light_state');
 var power_state = nconf.get('power_state');
 var logger = { "info" : console.log};
 
+var mqtt = require('mqtt')
+var mq = mqtt.connect('mqtt://mqtt.shack', { will: { topic: 'node-light/lwt', payload: 'offline', retain: true } } )
+
+mq.on('connect', function(){
+  mq.publish('node-light/lwt','online', { retain: true })
+})
 
 
 app.use(require('body-parser').json());
