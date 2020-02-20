@@ -1,5 +1,5 @@
-{ mkYarnPackage }:
-mkYarnPackage {
+{ yarn2nix-moretea }:
+yarn2nix-moretea.mkYarnPackage {
   name = "node-light";
   src = ./.;
   postInstall = ''

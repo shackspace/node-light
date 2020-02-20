@@ -6,6 +6,7 @@ var express = require('express');
 var app = express();
 
 storage = process.env.STATEFILE || './storage.json'
+mqtthost = process.env.MQTTHOST || 'mqtt.shack'
 port = process.env.PORT || 8082
 debug = process.env.DEBUG || false
 
@@ -15,9 +16,11 @@ var power_state = nconf.get('power_state');
 var logger = { "info" : console.log};
 
 var mqtt = require('mqtt')
-var mq = mqtt.connect('mqtt://mqtt.shack', { will: { topic: 'node-light/lwt', payload: 'offline', retain: true } } )
+logger.info("Trying to connect to "+mqtthost)
+var mq = mqtt.connect('mqtt://'+mqtthost, { will: { topic: 'node-light/lwt', payload: 'offline', retain: true } } )
 
 mq.on('connect', function(){
+  logger.info("Connected to "+ mqtthost )
   mq.publish('node-light/lwt','online', { retain: true })
 })
 
@@ -96,7 +99,7 @@ process.on('SIGINT', exitHandler.bind(null, {exit:true}));
 //catches sigterm event
 process.on('SIGTERM', exitHandler.bind(null, {exit:true}));
 //catches uncaught exceptions
-process.on('uncaughtException', exitHandler.bind(null, {exit:true}));
+// process.on('uncaughtException', exitHandler.bind(null, {exit:true}));
 
 
 
@@ -117,40 +120,69 @@ socket.bind(2342, function() {
 
 
 receiveUDP = function (data) {
-        logger.info('receiveUDP Data...');
+  logger.info('receiveUDP Data...');
 
+
+
+  if (data.length != 2){
+    logger.info("Unexpected Data Length "+ data.length)
+    return
+  }
+  if (data[1] < 1 ){
+    logger.info("Unexpected state set "+data[1]+" for id "+ data[0])
+    return
+  }
   light_lut = new Array(1,2,3,4,6,7,8,5);
-  light_lut_state = new Array('off','on');
+  state_lut = new Array('off','on');
 
-  if (data.length == 2 && data[0] <= light_lut.length && data[1] <= 1) {
-    light_state[(light_lut[(data[0])])].state = light_lut_state[(data[1])];
-    logger.info('receiveUDP: ' + data[0] + ' => ' + light_lut[(data[0])] + ' ' + data[1] + ' => ' + light_lut_state[(data[1])] );
-  }
+  new_state = state_lut[data[1]]
+  // lookup table for light
+  //lut = {
+  //  1: 1,
+  //  2: 2,
+  //  3: 3,
+  //  4: 4,
+  //  5: 6,
+  //  6: 7,
+  //  7: 8,
+  //  8: 5,
+  //  10: 120,
+  //  140: 140,
+  //  141: 141,
+  //  142: 142,
+  //  143: 143,
+  //}
 
-  power_lut = new Array(120,140,141,142,143);
-  power_lut_state = new Array('off','on');
-
-  if (data.length == 2 && data[0] == 10 && data[1] <= 1) {
-    power_state[1].state = power_lut_state[(data[1])];
-    logger.info('receiveUDP: ' + data[0] + ' => ' + '120' + ' ' + data[1] + ' => ' + power_lut_state[(data[1])] );
+  // <ID> <0,1>
+  if (data[0] <= light_lut.length) {
+    light_state[(light_lut[(data[0])])].state = new_state
+    mq.publish('light/'+data[0]+'/state',new_state)
+    logger.info('Light: ' + data[0] + ' => ' + light_lut[(data[0])] + ' ' + data[1] + ' => ' + new_state  );
+  } else if (data[0] == 10) {
+    // Hauptschalter
+    power_state[1].state = new_state
+    mq.publish('power/'+data[0]+'/state',new_state)
+    mq.publish('power/main/state',new_state)
+    logger.info('Power: ' + data[0] + ' => 120 => ' +  new_state);
+  }else if (data[0] == 140) {
+    power_state[2].state = new_state
+    mq.publish('power/'+data[0]+'/state',new_state)
+    logger.info('Power: ' + data[0]  + ' => ' + new_state);
+  }else if (data[0] == 141) {
+    mq.publish('power/'+data[0]+'/state',new_state)
+    power_state[3].state = state_lut[(data[1])];
+    logger.info('Power: ' + data[0] + ' => ' + new_state);
+  }else if (data[0] == 142) {
+    mq.publish('power/'+data[0]+'/state',new_state)
+    power_state[4].state = state_lut[(data[1])];
+    logger.info('Power: ' + data[0] + ' => ' + new_state );
+  }else if (data[0] == 143) {
+    mq.publish('power/'+data[0]+'/state',new_state)
+    power_state[5].state = state_lut[(data[1])];
+    logger.info('Power: ' + data[0] + ' => ' + new_state);
+  } else {
+    logger.info("Unknown power id " + data[0] + " (state "+new_state+")")
   }
-  if (data.length == 2 && data[0] == 140 && data[1] <= 1) {
-    power_state[2].state = power_lut_state[(data[1])];
-    logger.info('receiveUDP: ' + data[0] + ' => ' + '140' + ' ' + data[1] + ' => ' + power_lut_state[(data[1])] );
-  }
-  if (data.length == 2 && data[0] == 141 && data[1] <= 1) {
-    power_state[3].state = power_lut_state[(data[1])];
-    logger.info('receiveUDP: ' + data[0] + ' => ' + '141' + ' ' + data[1] + ' => ' + power_lut_state[(data[1])] );
-  }
-  if (data.length == 2 && data[0] == 142 && data[1] <= 1) {
-    power_state[4].state = power_lut_state[(data[1])];
-    logger.info('receiveUDP: ' + data[0] + ' => ' + '142' + ' ' + data[1] + ' => ' + power_lut_state[(data[1])] );
-  }
-  if (data.length == 2 && data[0] == 143 && data[1] <= 1) {
-    power_state[5].state = power_lut_state[(data[1])];
-    logger.info('receiveUDP: ' + data[0] + ' => ' + '143' + ' ' + data[1] + ' => ' + power_lut_state[(data[1])] );
-  }
-
 }
 
 
@@ -168,7 +200,7 @@ sendUDP = function (id, state) {
   else if (id == 7) id_old = 5;
   else if (id == 8) id_old = 6;
 
-  if (typeof(state) == 'undefined') {}  
+  if (typeof(state) == 'undefined') {}
   else if (state == 'on') {  state_old = 1; }
   else if (state == 'off') { state_old = 0; }
 
