@@ -22,6 +22,8 @@ var mq = mqtt.connect('mqtt://'+mqtthost, { will: { topic: 'node-light/lwt', pay
 mq.on('connect', function(){
   logger.info("Connected to "+ mqtthost )
   mq.publish('node-light/lwt','online', { retain: true })
+  mq.subscribe('power/+/command')
+  mq.subscribe('light/+/command')
 })
 
 
@@ -46,18 +48,20 @@ app.get(/^\/lounge\/([1-8])$/, function(req, res) {
   res.send(JSON.stringify(light_state[(req.params[0])]));
 });
 app.put(/^\/lounge\/([1-8])$/, function(req, res) {
-    res.end();
-    logger.info('state='+ req.body.state);
-    sendUDP(req.params[0],req.body.state);
+  res.end();
+  ident = req.params[0]
+  logger.info('lounge: id'+ ident +'state='+ req.body.state);
+  sendUDP(ident,req.body.state);
 });
 
 app.get(/^\/power\/([1-5])$/, function(req, res) {
   res.send(JSON.stringify(power_state[(req.params[0])]));
 });
 app.put(/^\/power\/([1-5])$/, function(req, res) {
-    res.end();
-  logger.info('state='+ req.body.state);
-    sendUDPPower(req.params[0],req.body.state);
+  res.end();
+  ident = req.params[0]
+  logger.info('power: id'+ ident +'state='+ req.body.state);
+  sendUDPPower(ident,req.body.state);
 });
 
 app.options('*', function(req, res) {
@@ -84,8 +88,6 @@ app.all('*', function(req, res) {
 app.listen(port);
 logger.info('Server started on port ' + port);
 
-
-
 function exitHandler(options, err) {
   logger.info('\n Start exithandler()');
   nconf.set('light_state',light_state);
@@ -111,13 +113,34 @@ socket.on('message', function (data) {
 
 socket.on("listening", function () {
   var address = socket.address();
-  logger.info("server listening " + address.address + ":" + address.port);
+  logger.info(`server listening ${address.address}:${address.port}`);
 });
 
 socket.bind(2342, function() {
   logger.info('server listing on 2342');
 });
 
+function receiveMQTT(topic,message){
+  logger.info(`Topic: ${topic} Message: ${message}`);
+  message = message.toString().trim()
+  if (message != "on"  && message != "off"){
+    logger.info(`Unknown command ${message} in topic ${topic}`)
+  }
+
+  type = topic.split("/")[0]
+  ident = topic.split("/")[1]
+  cmd = topic.split("/")[2]
+
+  if (type == "power") {
+    sendUDPPower(ident,message)
+  } else if (type == "light"){
+    sendUDP(ident,message)
+  } else {
+    logger.info(`Unknown type ${type}`)
+  }
+}
+
+mq.on('message', receiveMQTT )
 
 receiveUDP = function (data) {
   logger.info('receiveUDP Data...');
@@ -129,7 +152,7 @@ receiveUDP = function (data) {
     return
   }
   if (data[1] < 1 ){
-    logger.info("Unexpected state set "+data[1]+" for id "+ data[0])
+    logger.info(`Unexpected state set ${data[1]} for id ${data[0]}`)
     return
   }
   light_lut = new Array(1,2,3,4,6,7,8,5);
@@ -156,32 +179,32 @@ receiveUDP = function (data) {
   // <ID> <0,1>
   if (data[0] <= light_lut.length) {
     light_state[(light_lut[(data[0])])].state = new_state
-    mq.publish('light/'+data[0]+'/state',new_state)
-    logger.info('Light: ' + data[0] + ' => ' + light_lut[(data[0])] + ' ' + data[1] + ' => ' + new_state  );
+    mq.publish(`light/${data[0]}/state`,new_state)
+    logger.info(`Light: ${data[0]}  => ${light_lut[(data[0])]} ${data[1]} => ${new_state}`  );
   } else if (data[0] == 10) {
     // Hauptschalter
     power_state[1].state = new_state
-    mq.publish('power/'+data[0]+'/state',new_state)
+    mq.publish(`power/${data[0]}/state`,new_state)
     mq.publish('power/main/state',new_state)
-    logger.info('Power: ' + data[0] + ' => 120 => ' +  new_state);
+    logger.info(`Power: ${data[0]} => 120 => ${new_state}`);
   }else if (data[0] == 140) {
     power_state[2].state = new_state
-    mq.publish('power/'+data[0]+'/state',new_state)
-    logger.info('Power: ' + data[0]  + ' => ' + new_state);
+    mq.publish(`power/${data[0]}/state`,new_state)
+    logger.info(`Power: ${data[0]} => ${new_state}`);
   }else if (data[0] == 141) {
-    mq.publish('power/'+data[0]+'/state',new_state)
+    mq.publish(`power/${data[0]}/state`,new_state)
     power_state[3].state = state_lut[(data[1])];
-    logger.info('Power: ' + data[0] + ' => ' + new_state);
+    logger.info(`Power: ${data[0]} => ${new_state}`);
   }else if (data[0] == 142) {
-    mq.publish('power/'+data[0]+'/state',new_state)
+    mq.publish(`power/${data[0]}/state`,new_state)
     power_state[4].state = state_lut[(data[1])];
-    logger.info('Power: ' + data[0] + ' => ' + new_state );
+    logger.info(`Power: ${data[0]} => ${new_state}`);
   }else if (data[0] == 143) {
-    mq.publish('power/'+data[0]+'/state',new_state)
+    mq.publish(`power/${data[0]}/state`,new_state)
     power_state[5].state = state_lut[(data[1])];
-    logger.info('Power: ' + data[0] + ' => ' + new_state);
+    logger.info(`Power: ${data[0]} => ${new_state}`);
   } else {
-    logger.info("Unknown power id " + data[0] + " (state "+new_state+")")
+    logger.info(`Unknown power id ${data[0]} (state ${new_state})`)
   }
 }
 
@@ -220,7 +243,7 @@ sendUDPPower = function (id, state) {
   if (id == 5) id_eltako = 143;
 
   logger.info('sendUDP: ' + state);
-  if (typeof(state) == 'undefined') {}  
+  if (typeof(state) == 'undefined') {}
   else if (state == 'on')  { state_old = 1; }
   else if (state == 'off') { state_old = 0; }
 
