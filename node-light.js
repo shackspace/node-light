@@ -151,10 +151,11 @@ receiveUDP = function (data) {
     logger.info("Unexpected Data Length "+ data.length)
     return
   }
-  if (data[1] < 1 ){
-    logger.info(`Unexpected state set ${data[1]} for id ${data[0]}`)
+  if (data[1] > 1 ){
+    logger.info(`Unexpected state id ${data[0]} for ${data[1]} `)
     return
   }
+
   light_lut = new Array(1,2,3,4,6,7,8,5);
   state_lut = new Array('off','on');
 
@@ -180,29 +181,29 @@ receiveUDP = function (data) {
   if (data[0] <= light_lut.length) {
     light_state[(light_lut[(data[0])])].state = new_state
     mq.publish(`light/${data[0]}/state`,new_state)
-    logger.info(`Light: ${data[0]}  => ${light_lut[(data[0])]} ${data[1]} => ${new_state}`  );
+    logger.info(`Light: ${data[0]}  => ${light_lut[(data[0])]} ; ${data[1]} => ${new_state}`  );
   } else if (data[0] == 10) {
     // Hauptschalter
     power_state[1].state = new_state
     mq.publish(`power/${data[0]}/state`,new_state)
     mq.publish('power/main/state',new_state)
-    logger.info(`Power: ${data[0]} => 120 => ${new_state}`);
+    logger.info(`Power: ${data[0]} => 120 ; ${data[1]} => ${new_state}`);
   }else if (data[0] == 140) {
     power_state[2].state = new_state
     mq.publish(`power/${data[0]}/state`,new_state)
-    logger.info(`Power: ${data[0]} => ${new_state}`);
+    logger.info(`Power: ${data[0]} ; ${data[1]} => ${new_state}`);
   }else if (data[0] == 141) {
     mq.publish(`power/${data[0]}/state`,new_state)
     power_state[3].state = state_lut[(data[1])];
-    logger.info(`Power: ${data[0]} => ${new_state}`);
+    logger.info(`Power: ${data[0]} ; ${data[1]} => ${new_state}`);
   }else if (data[0] == 142) {
     mq.publish(`power/${data[0]}/state`,new_state)
     power_state[4].state = state_lut[(data[1])];
-    logger.info(`Power: ${data[0]} => ${new_state}`);
+    logger.info(`Power: ${data[0]} ; ${data[1]} => ${new_state}`);
   }else if (data[0] == 143) {
     mq.publish(`power/${data[0]}/state`,new_state)
     power_state[5].state = state_lut[(data[1])];
-    logger.info(`Power: ${data[0]} => ${new_state}`);
+    logger.info(`Power: ${data[0]} ; ${data[1]} => ${new_state}`);
   } else {
     logger.info(`Unknown power id ${data[0]} (state ${new_state})`)
   }
