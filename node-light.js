@@ -180,7 +180,7 @@ receiveUDP = function (data) {
   // <ID> <0,1>
   if (data[0] <= light_lut.length) {
     light_state[(light_lut[(data[0])])].state = new_state
-    mq.publish(`light/${data[0]}/state`,new_state)
+    mq.publish(`light/${light_lut[data[0]]}/state`,new_state)
     logger.info(`Light: ${data[0]}  => ${light_lut[(data[0])]} ; ${data[1]} => ${new_state}`  );
   } else if (data[0] == 10) {
     // Hauptschalter
